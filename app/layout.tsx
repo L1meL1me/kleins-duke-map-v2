@@ -15,26 +15,26 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase,
-    title: "Klein's Duke Map ? Duke + Triangle V3.1",
+    title: "Klein's Duke Map · Duke + Triangle V3.1",
     description:
-      "Duke?Durham ? Triangle ????????????",
+      "Duke、Durham 与 Triangle 的生活、交通和游览地图。",
     openGraph: {
       title: "Klein's Duke Map",
-      description: "Duke + Triangle ? V3.1 ? ??????????",
+      description: "Duke + Triangle · V3.1 · 生活地点与多交通路线",
       type: "website",
       images: [
         {
           url: "/og.png",
           width: 1792,
           height: 933,
-          alt: "Klein's Duke Map ? Duke + Triangle V3.1",
+          alt: "Klein's Duke Map — Duke + Triangle V3.1",
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
       title: "Klein's Duke Map",
-      description: "Duke + Triangle ? V3.1 ? ??????????",
+      description: "Duke + Triangle · V3.1 · 生活地点与多交通路线",
       images: ["/og.png"],
     },
   };

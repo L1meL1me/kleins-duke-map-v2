@@ -77,9 +77,9 @@ const TRAVEL_MODE_META: Record<
   TravelMode,
   { label: string; engine?: EngineRouteMode }
 > = {
-  walk: { label: "??", engine: "pedestrian" },
-  bike: { label: "??", engine: "bicycle" },
-  drive: { label: "??", engine: "auto" },
+  walk: { label: "步行", engine: "pedestrian" },
+  bike: { label: "骑行", engine: "bicycle" },
+  drive: { label: "驾车", engine: "auto" },
   shuttle: { label: "Duke Shuttle" },
 };
 
@@ -246,9 +246,9 @@ function useHorizontalDrag<T extends HTMLElement>() {
 }
 
 function confidenceLabel(place: Place) {
-  if (place.confidence === "verified") return "Duke ????";
-  if (place.confidence === "cross-checked") return "?????";
-  return "???????";
+  if (place.confidence === "verified") return "Duke 数据核验";
+  if (place.confidence === "cross-checked") return "已交叉核验";
+  return "课程信息待确认";
 }
 
 function mapsLink(
@@ -373,7 +373,7 @@ export default function DukeMapClient() {
       L.control.zoom({ position: "topright" }).addTo(map);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 20,
-        attribution: "? OpenStreetMap contributors",
+        attribution: "© OpenStreetMap contributors",
       }).addTo(map);
 
       for (const place of PLACES) {
@@ -392,7 +392,7 @@ export default function DukeMapClient() {
         if (placeArea(place) === "west") marker.addTo(map);
 
         marker.bindTooltip(
-          `<span class="marker-preview-emoji">${place.previewEmoji ?? place.markerLabel}</span><span class="marker-preview-copy"><b>${place.shortName}</b><small>${AREA_META[placeArea(place)].shortLabel} ? ${place.categoryLabel}</small></span>`,
+          `<span class="marker-preview-emoji">${place.previewEmoji ?? place.markerLabel}</span><span class="marker-preview-copy"><b>${place.shortName}</b><small>${AREA_META[placeArea(place)].shortLabel} · ${place.categoryLabel}</small></span>`,
           {
             direction: "top",
             offset: [0, -43],
@@ -464,11 +464,11 @@ export default function DukeMapClient() {
 
   async function useCurrentLocation() {
     if (!navigator.geolocation) {
-      setLocationMessage("??????????");
+      setLocationMessage("这台设备不支持定位。");
       return;
     }
 
-    setLocationMessage("?????????");
+    setLocationMessage("正在获取当前位置…");
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const point: [number, number] = [
@@ -481,7 +481,7 @@ export default function DukeMapClient() {
         if (!modes.includes(travelMode)) {
           setTravelMode(modes.includes("walk") ? "walk" : modes[0]);
         }
-        setLocationMessage("??????????");
+        setLocationMessage("已使用你当前的位置。");
 
         const map = mapRef.current;
         if (map) {
@@ -496,7 +496,7 @@ export default function DukeMapClient() {
               fillColor: "#1677ff",
               fillOpacity: 1,
             })
-              .bindTooltip("????")
+              .bindTooltip("你在这里")
               .addTo(map);
           }
           map.flyTo(point, 17, { duration: 0.6 });
@@ -504,7 +504,7 @@ export default function DukeMapClient() {
       },
       () => {
         setOriginMode("edens");
-        setLocationMessage("??????????? Edens 1A?");
+        setLocationMessage("定位未开启，已继续使用 Edens 1A。");
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
@@ -529,26 +529,26 @@ export default function DukeMapClient() {
     routeEndpointRefs.current.origin?.remove();
     routeEndpointRefs.current.destination?.remove();
     routeEndpointRefs.current.origin = L.marker(origin, {
-      title: "????",
+      title: "路线起点",
       icon: L.divIcon({
         className: "route-endpoint-shell",
-        html: '<span class="route-endpoint route-origin-pin"><b>?</b></span>',
+        html: '<span class="route-endpoint route-origin-pin"><b>起</b></span>',
         iconSize: [36, 42],
         iconAnchor: [18, 38],
       }),
     })
-      .bindTooltip("????", { direction: "top", offset: [0, -30] })
+      .bindTooltip("路线起点", { direction: "top", offset: [0, -30] })
       .addTo(map);
     routeEndpointRefs.current.destination = L.marker(destination, {
-      title: "????",
+      title: "路线终点",
       icon: L.divIcon({
         className: "route-endpoint-shell",
-        html: '<span class="route-endpoint route-destination-pin"><b>?</b></span>',
+        html: '<span class="route-endpoint route-destination-pin"><b>终</b></span>',
         iconSize: [36, 42],
         iconAnchor: [18, 38],
       }),
     })
-      .bindTooltip("????", { direction: "top", offset: [0, -30] })
+      .bindTooltip("路线终点", { direction: "top", offset: [0, -30] })
       .addTo(map);
   }
 
@@ -580,7 +580,7 @@ export default function DukeMapClient() {
     if (selectedPlace.id === "edens-1a" && originMode === "edens") {
       setRoute(null);
       setShuttlePlan(null);
-      setRouteMessage("Edens 1A ????????");
+      setRouteMessage("Edens 1A 已经是路线起点。");
       return;
     }
 
@@ -593,7 +593,7 @@ export default function DukeMapClient() {
         const draftPlan = shuttlePlanFor(origin, destination);
         if (!draftPlan) {
           setShuttlePlan(null);
-          setRouteMessage("???????????? Duke Shuttle ???");
+          setRouteMessage("这两个地点之间没有合适的 Duke Shuttle 组合。");
           return;
         }
 
@@ -650,7 +650,7 @@ export default function DukeMapClient() {
       }
 
       const engineMode = TRAVEL_MODE_META[travelMode].engine;
-      if (!engineMode) throw new Error("???????????");
+      if (!engineMode) throw new Error("请选择可用的路线方式。");
       const result = await fetchRoute(origin, destination, engineMode);
 
       setRoute(result);
@@ -678,7 +678,7 @@ export default function DukeMapClient() {
       setRouteMessage(
         error instanceof Error
           ? error.message
-          : "???????????????????",
+          : "步行路线暂时无法加载，请使用外部地图。",
       );
     } finally {
       setRouteLoading(false);
@@ -793,7 +793,7 @@ export default function DukeMapClient() {
 
   return (
     <main className="map-app">
-      <section className="map-stage" aria-label="Duke ? Triangle ????">
+      <section className="map-stage" aria-label="Duke 与 Triangle 互动地图">
         <div ref={mapNodeRef} className="leaflet-map" />
         <div className="map-wash" aria-hidden="true" />
 
@@ -801,13 +801,13 @@ export default function DukeMapClient() {
           <div className="mobile-mark">KD</div>
           <div>
             <strong>Klein&apos;s Duke Map</strong>
-            <span>Duke + Triangle ? V3.1</span>
+            <span>Duke + Triangle · V3.1</span>
           </div>
           <button
             type="button"
             className="round-icon-button"
             onClick={useCurrentLocation}
-            aria-label="??????"
+            aria-label="使用当前位置"
           >
             <LocateFixed size={18} />
           </button>
@@ -815,7 +815,7 @@ export default function DukeMapClient() {
 
         <nav
           className="mobile-category-strip draggable-tabs"
-          aria-label="????"
+          aria-label="区域筛选"
           {...mobileAreaDrag}
         >
           <button
@@ -826,7 +826,7 @@ export default function DukeMapClient() {
               setActiveCategory("all");
             }}
           >
-            ??
+            全部
           </button>
           {AREA_ORDER.map((area) => (
             <button
@@ -845,7 +845,7 @@ export default function DukeMapClient() {
 
         <div className="map-accuracy-pill">
           <BadgeCheck size={15} />
-          {PLACES.length} ?????? ? ???????
+          {PLACES.length} 个固定核验点 · 不再实时猜坐标
         </div>
       </section>
 
@@ -862,7 +862,7 @@ export default function DukeMapClient() {
         <button
           type="button"
           className="sheet-handle"
-          aria-label={sheetOpen ? "????" : "????"}
+          aria-label={sheetOpen ? "收起详情" : "展开详情"}
           aria-expanded={sheetOpen}
           onPointerDown={handleSheetPointerDown}
           onPointerMove={handleSheetPointerMove}
@@ -879,13 +879,13 @@ export default function DukeMapClient() {
             <div className="brand-mark">KD</div>
             <div>
               <h1>Klein&apos;s Duke Map</h1>
-              <p>Duke + Triangle ? Fall 2026 ? V3.1</p>
+              <p>Duke + Triangle · Fall 2026 · V3.1</p>
             </div>
             <button
               type="button"
               className="round-icon-button desktop-locate"
               onClick={useCurrentLocation}
-              aria-label="??????"
+              aria-label="使用当前位置"
             >
               <LocateFixed size={18} />
             </button>
@@ -894,8 +894,8 @@ export default function DukeMapClient() {
           <div className="trust-banner">
             <BadgeCheck size={19} />
             <div>
-              <strong>?????</strong>
-              <span>???? + ????? + ??????</span>
+              <strong>准确性优先</strong>
+              <span>分区地点 + 多交通路线 + 官方来源日期</span>
             </div>
           </div>
 
@@ -911,14 +911,14 @@ export default function DukeMapClient() {
                   setActiveCategory("all");
                 }
               }}
-              placeholder="?????????????"
-              aria-label="?????????????"
+              placeholder="搜索地点、餐厅、超市或景点"
+              aria-label="搜索地点、餐厅、超市或景点"
             />
             {query && (
               <button
                 type="button"
                 onClick={() => setQuery("")}
-                aria-label="????"
+                aria-label="清除搜索"
               >
                 <X size={16} />
               </button>
@@ -927,7 +927,7 @@ export default function DukeMapClient() {
 
           <div
             className="area-tabs draggable-tabs"
-            aria-label="????"
+            aria-label="地图区域"
             {...areaDrag}
           >
             <button
@@ -938,7 +938,7 @@ export default function DukeMapClient() {
                 setActiveCategory("all");
               }}
             >
-              ????
+              全部区域
             </button>
             {AREA_ORDER.map((area) => (
               <button
@@ -957,7 +957,7 @@ export default function DukeMapClient() {
 
           <div
             className="category-tabs draggable-tabs"
-            aria-label="????"
+            aria-label="地点分类"
             {...categoryDrag}
           >
             <button
@@ -965,7 +965,7 @@ export default function DukeMapClient() {
               className={activeCategory === "all" ? "active" : ""}
               onClick={() => setActiveCategory("all")}
             >
-              ??
+              全部
             </button>
             {availableCategories.map((category) => (
               <button
@@ -983,10 +983,10 @@ export default function DukeMapClient() {
             <div className="section-heading">
               <span>
                 {activeArea === "all"
-                  ? "????"
+                  ? "全部地点"
                   : AREA_META[activeArea].label}
               </span>
-              <small>{filteredPlaces.length} ?</small>
+              <small>{filteredPlaces.length} 个</small>
             </div>
             <div className="place-list">
               {groupedPlaces.map((group) => (
@@ -1016,7 +1016,7 @@ export default function DukeMapClient() {
                           <strong>{place.shortName}</strong>
                           <small>
                             {place.categoryLabel}
-                            {place.room ? ` ? ${place.room}` : ""}
+                            {place.room ? ` · ${place.room}` : ""}
                           </small>
                         </span>
                         <ArrowRight size={16} />
@@ -1028,14 +1028,14 @@ export default function DukeMapClient() {
               {filteredPlaces.length === 0 && (
                 <div className="empty-search">
                   <MapPin size={20} />
-                  <strong>???????????</strong>
-                  <span>???????????????????</span>
+                  <strong>当前清单里没有这个地点</strong>
+                  <span>尝试更短的名称，或切换到“全部区域”。</span>
                   <a
                     href="https://maps.duke.edu/"
                     target="_blank"
                     rel="noreferrer"
                   >
-                    ? Duke ??????
+                    去 Duke 官方地图搜索
                     <ExternalLink size={14} />
                   </a>
                 </div>
@@ -1056,7 +1056,7 @@ export default function DukeMapClient() {
                   background: CATEGORY_META[selectedPlace.category].soft,
                 }}
               >
-                {AREA_META[placeArea(selectedPlace)].shortLabel} ?{" "}
+                {AREA_META[placeArea(selectedPlace)].shortLabel} ·{" "}
                 {selectedPlace.categoryLabel}
               </span>
               <span
@@ -1081,8 +1081,8 @@ export default function DukeMapClient() {
             </ul>
 
             <div className="origin-control">
-              <span>????</span>
-              <div role="group" aria-label="????">
+              <span>路线起点</span>
+              <div role="group" aria-label="路线起点">
                 <button
                   type="button"
                   className={originMode === "edens" ? "active" : ""}
@@ -1108,7 +1108,7 @@ export default function DukeMapClient() {
                   onClick={useCurrentLocation}
                 >
                   <LocateFixed size={14} />
-                  ????
+                  当前位置
                 </button>
               </div>
             </div>
@@ -1118,8 +1118,8 @@ export default function DukeMapClient() {
             )}
 
             <div className="travel-mode-control">
-              <span>????</span>
-              <div role="group" aria-label="????">
+              <span>交通方式</span>
+              <div role="group" aria-label="交通方式">
                 {availableTravelModes.map((mode) => (
                   <button
                     type="button"
@@ -1151,10 +1151,10 @@ export default function DukeMapClient() {
               {travelMode === "drive" && <CarFront size={19} />}
               {travelMode === "shuttle" && <Bus size={19} />}
               {routeLoading
-                ? "???????"
+                ? "正在计算路线…"
                 : travelMode === "shuttle"
-                  ? "?? Duke Shuttle ??"
-                  : `??${TRAVEL_MODE_META[travelMode].label}??`}
+                  ? "查看 Duke Shuttle 方案"
+                  : `规划${TRAVEL_MODE_META[travelMode].label}路线`}
             </button>
 
             {travelMode === "shuttle" &&
@@ -1165,10 +1165,10 @@ export default function DukeMapClient() {
                   <div>
                     <strong>{shuttlePreview.routeName}</strong>
                     <span>
-                      {shuttlePreview.board.shortName} ?{" "}
+                      {shuttlePreview.board.shortName} →{" "}
                       {shuttlePreview.alight.shortName}
                     </span>
-                    <small>???????????????????</small>
+                    <small>点击上方按钮后显示沿途站点与两端步行。</small>
                   </div>
                 </div>
               )}
@@ -1179,15 +1179,15 @@ export default function DukeMapClient() {
                 <div>
                   <strong>{shuttlePlan.routeName}</strong>
                   <span>
-                    ? {shuttlePlan.board.shortName} ????{" "}
-                    {shuttlePlan.alight.shortName} ??
+                    在 {shuttlePlan.board.shortName} 上车，于{" "}
+                    {shuttlePlan.alight.shortName} 下车
                   </span>
                   <div className="shuttle-walk-summary">
                     <span>
-                      ???? {(shuttlePlan.originWalkKm * 1000).toFixed(0)} m
+                      起点步行 {(shuttlePlan.originWalkKm * 1000).toFixed(0)} m
                     </span>
                     <span>
-                      ?????{" "}
+                      下车后步行{" "}
                       {(shuttlePlan.destinationWalkKm * 1000).toFixed(0)} m
                     </span>
                   </div>
@@ -1204,7 +1204,7 @@ export default function DukeMapClient() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    TransLoc ????
+                    TransLoc 实时车辆
                     <ExternalLink size={13} />
                   </a>
                 </div>
@@ -1223,14 +1223,14 @@ export default function DukeMapClient() {
                 <div className="route-summary">
                   <span>
                     <Clock3 size={17} />
-                    <strong>{route.durationMinutes}</strong> ??
+                    <strong>{route.durationMinutes}</strong> 分钟
                   </span>
                   <span>
                     <Navigation size={17} />
                     <strong>{route.distanceKm.toFixed(2)}</strong> km
                   </span>
                   <button type="button" onClick={clearRoute}>
-                    ??
+                    清除
                   </button>
                 </div>
                 <ol className="route-steps">
@@ -1244,7 +1244,7 @@ export default function DukeMapClient() {
                     </li>
                   ))}
                 </ol>
-                <p>{route.engine} ? ??????????????</p>
+                <p>{route.engine} · 路线仍应以现场封路和标识为准</p>
               </div>
             )}
 
@@ -1286,7 +1286,7 @@ export default function DukeMapClient() {
               onClick={() => setShowSources((show) => !show)}
             >
               <BadgeCheck size={15} />
-              ?????????
+              数据来源与核验日期
               {showSources ? (
                 <ChevronUp size={15} />
               ) : (
@@ -1303,9 +1303,9 @@ export default function DukeMapClient() {
                   {selectedPlace.source.label}
                   <ExternalLink size={13} />
                 </a>
-                <span>???{selectedPlace.source.checkedAt}</span>
+                <span>核验：{selectedPlace.source.checkedAt}</span>
                 {selectedPlace.address && (
-                  <span>???{selectedPlace.address}</span>
+                  <span>地址：{selectedPlace.address}</span>
                 )}
               </div>
             )}
@@ -1313,8 +1313,8 @@ export default function DukeMapClient() {
 
           <section className="schedule-card">
             <div className="section-heading">
-              <span>Fall 2026 ????</span>
-              <small>? DukeHub ??</small>
+              <span>Fall 2026 课程动线</span>
+              <small>以 DukeHub 为准</small>
             </div>
             {FALL_2026_PLAN.map((day) => (
               <div className="schedule-day" key={day.day}>
@@ -1345,7 +1345,7 @@ export default function DukeMapClient() {
           <section className="official-links-card">
             <div className="official-title">
               <Sparkles size={17} />
-              ????????
+              实时信息交给官方
             </div>
             <div>
               {OFFICIAL_LINKS.map((link) => (
@@ -1365,19 +1365,19 @@ export default function DukeMapClient() {
           <footer className="panel-footer">
             <span>
               <Map size={14} />
-              ?? ? OpenStreetMap
+              地图 © OpenStreetMap
             </span>
             <span>
               <Bus size={14} />
-              ?? ? Duke / TransLoc
+              校车 © Duke / TransLoc
             </span>
             <span>
               <Printer size={14} />
-              ?? ? Duke ePrint
+              设施 © Duke ePrint
             </span>
             <span>
               <BookOpen size={14} />
-              ??? DukeHub ??
+              课程需 DukeHub 确认
             </span>
           </footer>
         </div>
