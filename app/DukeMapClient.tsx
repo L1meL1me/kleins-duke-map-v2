@@ -209,16 +209,18 @@ function useHorizontalDrag<T extends HTMLElement>() {
         startScrollLeft: event.currentTarget.scrollLeft,
         moved: false,
       };
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      } catch {
-        // Some embedded browsers do not expose pointer capture.
-      }
     },
     onPointerMove(event: ReactPointerEvent<HTMLElement>) {
       if (gesture.current.pointerId !== event.pointerId) return;
       const delta = event.clientX - gesture.current.startX;
-      if (Math.abs(delta) > 5) gesture.current.moved = true;
+      if (Math.abs(delta) > 5 && !gesture.current.moved) {
+        gesture.current.moved = true;
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // Dragging still works while the pointer remains over the strip.
+        }
+      }
       if (gesture.current.moved) {
         event.currentTarget.scrollLeft =
           gesture.current.startScrollLeft - delta;
@@ -227,8 +229,12 @@ function useHorizontalDrag<T extends HTMLElement>() {
     },
     onPointerUp(event: ReactPointerEvent<HTMLElement>) {
       if (gesture.current.pointerId !== event.pointerId) return;
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
+      try {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+      } catch {
+        // Pointer capture is optional in some embedded browsers.
       }
       gesture.current.pointerId = -1;
     },
