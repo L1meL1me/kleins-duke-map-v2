@@ -5,7 +5,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   root: path.resolve(__dirname, "standalone"),
   publicDir: path.resolve(__dirname, "public"),
-  base: "/kleins-duke-map-v2/",
+  base: "/kleins-duke-map/",
   plugins: [react()],
   build: {
     outDir: path.resolve(__dirname, "standalone-dist"),
