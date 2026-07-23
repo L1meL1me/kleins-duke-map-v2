@@ -15,26 +15,26 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase,
-    title: "Klein's Duke Map · West Campus V2",
+    title: "Klein's Duke Map · Duke + Triangle V3",
     description:
-      "为 Fall 2026 课程与校园生活准备的 Duke West Campus 准确路线地图。",
+      "Duke、Durham 与 Triangle 的生活、交通和游览地图。",
     openGraph: {
       title: "Klein's Duke Map",
-      description: "West Campus · V2 · 固定核验点与真实行人步道路线",
+      description: "Duke + Triangle · V3 · 生活地点与多交通路线",
       type: "website",
       images: [
         {
           url: "/og.png",
           width: 1792,
           height: 933,
-          alt: "Klein's Duke Map — West Campus V2",
+          alt: "Klein's Duke Map — Duke + Triangle V3",
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
       title: "Klein's Duke Map",
-      description: "West Campus · V2 · 固定核验点与真实行人步道路线",
+      description: "Duke + Triangle · V3 · 生活地点与多交通路线",
       images: ["/og.png"],
     },
   };

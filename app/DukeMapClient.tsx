@@ -3,8 +3,10 @@
 import {
   ArrowRight,
   BadgeCheck,
+  Bike,
   BookOpen,
   Bus,
+  CarFront,
   ChevronDown,
   ChevronUp,
   CircleAlert,
@@ -28,18 +30,50 @@ import type {
 } from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AREA_META,
+  AREA_ORDER,
   CATEGORY_META,
   FALL_2026_PLAN,
   OFFICIAL_LINKS,
   PLACES,
   type Place,
+  type PlaceArea,
   type PlaceCategory,
 } from "./data";
-import { fetchWalkingRoute, type RouteResult } from "./route-client";
+import {
+  fetchRoute,
+  type RouteMode as EngineRouteMode,
+  type RouteResult,
+} from "./route-client";
 
 type OriginMode = "edens" | "current";
+type TravelMode = "walk" | "bike" | "drive" | "shuttle";
 
 const EDENS = PLACES.find((place) => place.id === "edens-1a")!;
+
+const TRAVEL_MODE_META: Record<
+  TravelMode,
+  { label: string; engine?: EngineRouteMode }
+> = {
+  walk: { label: "步行", engine: "pedestrian" },
+  bike: { label: "骑行", engine: "bicycle" },
+  drive: { label: "驾车", engine: "auto" },
+  shuttle: { label: "Duke Shuttle" },
+};
+
+function placeArea(place: Place): PlaceArea {
+  return place.area ?? "west";
+}
+
+function travelModesFor(place: Place): TravelMode[] {
+  const area = placeArea(place);
+  if (area === "travel" || area === "triangle") return ["drive"];
+  if (area === "durham" || area === "essentials")
+    return ["bike", "drive"];
+  const modes: TravelMode[] = ["walk", "bike", "drive"];
+  if (place.shuttle) modes.push("shuttle");
+  return modes;
+}
 
 function confidenceLabel(place: Place) {
   if (place.confidence === "verified") return "Duke 数据核验";
@@ -47,16 +81,23 @@ function confidenceLabel(place: Place) {
   return "课程信息待确认";
 }
 
-function mapsLink(place: Place, provider: "google" | "apple") {
+function mapsLink(
+  place: Place,
+  provider: "google" | "apple",
+  mode: TravelMode,
+) {
   const [lat, lon] = place.coordinates;
   if (provider === "apple") {
-    return `https://maps.apple.com/?daddr=${lat},${lon}&dirflg=w`;
+    return `https://maps.apple.com/?daddr=${lat},${lon}&dirflg=${mode === "drive" ? "d" : "w"}`;
   }
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=walking`;
+  const travelmode =
+    mode === "drive" ? "driving" : mode === "bike" ? "bicycling" : "walking";
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=${travelmode}`;
 }
 
 export default function DukeMapClient() {
   const [selectedId, setSelectedId] = useState("edens-1a");
+  const [activeArea, setActiveArea] = useState<PlaceArea | "all">("west");
   const [activeCategory, setActiveCategory] = useState<
     PlaceCategory | "all"
   >("all");
@@ -69,6 +110,7 @@ export default function DukeMapClient() {
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeMessage, setRouteMessage] = useState("");
+  const [travelMode, setTravelMode] = useState<TravelMode>("walk");
   const [sheetOpen, setSheetOpen] = useState(true);
   const [showSources, setShowSources] = useState(false);
 
@@ -80,20 +122,43 @@ export default function DukeMapClient() {
 
   const selectedPlace =
     PLACES.find((place) => place.id === selectedId) ?? EDENS;
+  const availableTravelModes = travelModesFor(selectedPlace);
+
+  const availableCategories = useMemo(() => {
+    const categories = new Set(
+      PLACES.filter(
+        (place) => activeArea === "all" || placeArea(place) === activeArea,
+      ).map((place) => place.category),
+    );
+    return (Object.keys(CATEGORY_META) as PlaceCategory[]).filter((category) =>
+      categories.has(category),
+    );
+  }, [activeArea]);
 
   const filteredPlaces = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return PLACES.filter((place) => {
+      const areaMatches =
+        activeArea === "all" || placeArea(place) === activeArea;
       const categoryMatches =
         activeCategory === "all" || place.category === activeCategory;
       const queryMatches =
         !normalized ||
-        `${place.name} ${place.shortName} ${place.categoryLabel} ${place.room ?? ""}`
+        `${place.name} ${place.shortName} ${place.categoryLabel} ${AREA_META[placeArea(place)].label} ${place.room ?? ""} ${place.address ?? ""}`
           .toLowerCase()
           .includes(normalized);
-      return categoryMatches && queryMatches;
+      return areaMatches && categoryMatches && queryMatches;
     });
-  }, [activeCategory, query]);
+  }, [activeArea, activeCategory, query]);
+
+  const groupedPlaces = useMemo(
+    () =>
+      AREA_ORDER.map((area) => ({
+        area,
+        places: filteredPlaces.filter((place) => placeArea(place) === area),
+      })).filter((group) => group.places.length > 0),
+    [filteredPlaces],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -126,10 +191,24 @@ export default function DukeMapClient() {
             iconSize: [44, 52],
             iconAnchor: [22, 48],
           }),
-        }).addTo(map);
+        });
 
+        if (placeArea(place) === "west") marker.addTo(map);
+
+        marker.bindTooltip(
+          `<span class="marker-preview-emoji">${place.previewEmoji ?? place.markerLabel}</span><span class="marker-preview-copy"><b>${place.shortName}</b><small>${AREA_META[placeArea(place)].shortLabel} · ${place.categoryLabel}</small></span>`,
+          {
+            direction: "top",
+            offset: [0, -43],
+            opacity: 1,
+            className: "marker-preview-tooltip",
+          },
+        );
         marker.on("click", () => {
           setSelectedId(place.id);
+          setActiveArea(placeArea(place));
+          const modes = travelModesFor(place);
+          setTravelMode(modes.includes("walk") ? "walk" : modes[0]);
           setSheetOpen(true);
         });
         markerRefs.current[place.id] = marker;
@@ -158,18 +237,22 @@ export default function DukeMapClient() {
     for (const place of PLACES) {
       const marker = markerRefs.current[place.id];
       if (!marker) continue;
-      const shouldShow =
+      const areaMatches =
+        activeArea === "all" || placeArea(place) === activeArea;
+      const categoryMatches =
         activeCategory === "all" || place.category === activeCategory;
+      const shouldShow = areaMatches && categoryMatches;
       if (shouldShow && !map.hasLayer(marker)) marker.addTo(map);
       if (!shouldShow && map.hasLayer(marker)) marker.removeFrom(map);
     }
-  }, [activeCategory]);
+  }, [activeArea, activeCategory]);
 
   useEffect(() => {
     const map = mapRef.current;
     const marker = markerRefs.current[selectedPlace.id];
     if (!map || !marker) return;
     if (!map.hasLayer(marker)) {
+      setActiveArea(placeArea(selectedPlace));
       setActiveCategory("all");
       marker.addTo(map);
     }
@@ -220,7 +303,7 @@ export default function DukeMapClient() {
     );
   }
 
-  async function buildWalkingRoute() {
+  async function buildRoute() {
     const origin =
       originMode === "current" && userLocation
         ? userLocation
@@ -237,7 +320,14 @@ export default function DukeMapClient() {
     setRouteMessage("");
 
     try {
-      const result = await fetchWalkingRoute(origin, destination);
+      if (travelMode === "shuttle") {
+        setRoute(null);
+        return;
+      }
+
+      const engineMode = TRAVEL_MODE_META[travelMode].engine;
+      if (!engineMode) throw new Error("请选择可用的路线方式。");
+      const result = await fetchRoute(origin, destination, engineMode);
 
       setRoute(result);
       const L = await import("leaflet");
@@ -277,13 +367,17 @@ export default function DukeMapClient() {
 
   function choosePlace(place: Place) {
     setSelectedId(place.id);
+    setActiveArea(placeArea(place));
+    setActiveCategory("all");
+    const modes = travelModesFor(place);
+    setTravelMode(modes.includes("walk") ? "walk" : modes[0]);
     setSheetOpen(true);
     clearRoute();
   }
 
   return (
     <main className="map-app">
-      <section className="map-stage" aria-label="Duke West Campus 互动地图">
+      <section className="map-stage" aria-label="Duke 与 Triangle 互动地图">
         <div ref={mapNodeRef} className="leaflet-map" />
         <div className="map-wash" aria-hidden="true" />
 
@@ -291,7 +385,7 @@ export default function DukeMapClient() {
           <div className="mobile-mark">KD</div>
           <div>
             <strong>Klein&apos;s Duke Map</strong>
-            <span>West Campus · V2</span>
+            <span>Duke + Triangle · V3</span>
           </div>
           <button
             type="button"
@@ -303,22 +397,28 @@ export default function DukeMapClient() {
           </button>
         </header>
 
-        <nav className="mobile-category-strip" aria-label="地点筛选">
+        <nav className="mobile-category-strip" aria-label="区域筛选">
           <button
             type="button"
-            className={activeCategory === "all" ? "active" : ""}
-            onClick={() => setActiveCategory("all")}
+            className={activeArea === "all" ? "active" : ""}
+            onClick={() => {
+              setActiveArea("all");
+              setActiveCategory("all");
+            }}
           >
             全部
           </button>
-          {(Object.keys(CATEGORY_META) as PlaceCategory[]).map((category) => (
+          {AREA_ORDER.map((area) => (
             <button
               type="button"
-              key={category}
-              className={activeCategory === category ? "active" : ""}
-              onClick={() => setActiveCategory(category)}
+              key={area}
+              className={activeArea === area ? "active" : ""}
+              onClick={() => {
+                setActiveArea(area);
+                setActiveCategory("all");
+              }}
             >
-              {CATEGORY_META[category].label}
+              {AREA_META[area].shortLabel}
             </button>
           ))}
         </nav>
@@ -345,7 +445,7 @@ export default function DukeMapClient() {
             <div className="brand-mark">KD</div>
             <div>
               <h1>Klein&apos;s Duke Map</h1>
-              <p>West Campus · Fall 2026 · V2</p>
+              <p>Duke + Triangle · Fall 2026 · V3</p>
             </div>
             <button
               type="button"
@@ -361,7 +461,7 @@ export default function DukeMapClient() {
             <BadgeCheck size={19} />
             <div>
               <strong>准确性优先</strong>
-              <span>固定入口点 + 行人步道路线 + 官方来源日期</span>
+              <span>分区地点 + 多交通路线 + 官方来源日期</span>
             </div>
           </div>
 
@@ -369,9 +469,16 @@ export default function DukeMapClient() {
             <Search size={18} aria-hidden="true" />
             <input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索地点、课程或教室"
-              aria-label="搜索地点、课程或教室"
+              onChange={(event) => {
+                const value = event.target.value;
+                setQuery(value);
+                if (value.trim()) {
+                  setActiveArea("all");
+                  setActiveCategory("all");
+                }
+              }}
+              placeholder="搜索地点、餐厅、超市或景点"
+              aria-label="搜索地点、餐厅、超市或景点"
             />
             {query && (
               <button
@@ -384,6 +491,32 @@ export default function DukeMapClient() {
             )}
           </label>
 
+          <div className="area-tabs" aria-label="地图区域">
+            <button
+              type="button"
+              className={activeArea === "all" ? "active" : ""}
+              onClick={() => {
+                setActiveArea("all");
+                setActiveCategory("all");
+              }}
+            >
+              全部区域
+            </button>
+            {AREA_ORDER.map((area) => (
+              <button
+                type="button"
+                key={area}
+                className={activeArea === area ? "active" : ""}
+                onClick={() => {
+                  setActiveArea(area);
+                  setActiveCategory("all");
+                }}
+              >
+                {AREA_META[area].shortLabel}
+              </button>
+            ))}
+          </div>
+
           <div className="category-tabs" aria-label="地点分类">
             <button
               type="button"
@@ -392,7 +525,7 @@ export default function DukeMapClient() {
             >
               全部
             </button>
-            {(Object.keys(CATEGORY_META) as PlaceCategory[]).map((category) => (
+            {availableCategories.map((category) => (
               <button
                 type="button"
                 key={category}
@@ -406,41 +539,55 @@ export default function DukeMapClient() {
 
           <section className="place-list-section">
             <div className="section-heading">
-              <span>常用地点</span>
+              <span>
+                {activeArea === "all"
+                  ? "全部地点"
+                  : AREA_META[activeArea].label}
+              </span>
               <small>{filteredPlaces.length} 个</small>
             </div>
             <div className="place-list">
-              {filteredPlaces.map((place) => {
-                const meta = CATEGORY_META[place.category];
-                return (
-                  <button
-                    type="button"
-                    key={place.id}
-                    className={`place-row ${selectedPlace.id === place.id ? "active" : ""}`}
-                    onClick={() => choosePlace(place)}
-                  >
-                    <span
-                      className="place-glyph"
-                      style={{ color: meta.color, background: meta.soft }}
-                    >
-                      {place.markerLabel}
-                    </span>
-                    <span className="place-copy">
-                      <strong>{place.shortName}</strong>
-                      <small>
-                        {place.categoryLabel}
-                        {place.room ? ` · ${place.room}` : ""}
-                      </small>
-                    </span>
-                    <ArrowRight size={16} />
-                  </button>
-                );
-              })}
+              {groupedPlaces.map((group) => (
+                <div className="place-area-group" key={group.area}>
+                  {activeArea === "all" && (
+                    <div className="place-area-heading">
+                      <span>{AREA_META[group.area].label}</span>
+                      <small>{group.places.length}</small>
+                    </div>
+                  )}
+                  {group.places.map((place) => {
+                    const meta = CATEGORY_META[place.category];
+                    return (
+                      <button
+                        type="button"
+                        key={place.id}
+                        className={`place-row ${selectedPlace.id === place.id ? "active" : ""}`}
+                        onClick={() => choosePlace(place)}
+                      >
+                        <span
+                          className="place-glyph"
+                          style={{ color: meta.color, background: meta.soft }}
+                        >
+                          {place.previewEmoji ?? place.markerLabel}
+                        </span>
+                        <span className="place-copy">
+                          <strong>{place.shortName}</strong>
+                          <small>
+                            {place.categoryLabel}
+                            {place.room ? ` · ${place.room}` : ""}
+                          </small>
+                        </span>
+                        <ArrowRight size={16} />
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
               {filteredPlaces.length === 0 && (
                 <div className="empty-search">
                   <MapPin size={20} />
-                  <strong>当前核验清单里没有这个地点</strong>
-                  <span>为避免错误坐标，V2 暂不进行模糊网络搜索。</span>
+                  <strong>当前清单里没有这个地点</strong>
+                  <span>尝试更短的名称，或切换到“全部区域”。</span>
                   <a
                     href="https://maps.duke.edu/"
                     target="_blank"
@@ -463,6 +610,7 @@ export default function DukeMapClient() {
                   background: CATEGORY_META[selectedPlace.category].soft,
                 }}
               >
+                {AREA_META[placeArea(selectedPlace)].shortLabel} ·{" "}
                 {selectedPlace.categoryLabel}
               </span>
               <span
@@ -514,15 +662,63 @@ export default function DukeMapClient() {
               <p className="inline-message">{locationMessage}</p>
             )}
 
+            <div className="travel-mode-control">
+              <span>交通方式</span>
+              <div role="group" aria-label="交通方式">
+                {availableTravelModes.map((mode) => (
+                  <button
+                    type="button"
+                    key={mode}
+                    className={travelMode === mode ? "active" : ""}
+                    onClick={() => {
+                      setTravelMode(mode);
+                      clearRoute();
+                    }}
+                  >
+                    {mode === "walk" && <Footprints size={14} />}
+                    {mode === "bike" && <Bike size={14} />}
+                    {mode === "drive" && <CarFront size={14} />}
+                    {mode === "shuttle" && <Bus size={14} />}
+                    {TRAVEL_MODE_META[mode].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
               type="button"
               className="primary-route-button"
-              onClick={buildWalkingRoute}
+              onClick={buildRoute}
               disabled={routeLoading}
             >
-              <Footprints size={19} />
-              {routeLoading ? "正在计算校园步道…" : "规划校园步行路线"}
+              {travelMode === "walk" && <Footprints size={19} />}
+              {travelMode === "bike" && <Bike size={19} />}
+              {travelMode === "drive" && <CarFront size={19} />}
+              {travelMode === "shuttle" && <Bus size={19} />}
+              {routeLoading
+                ? "正在计算路线…"
+                : travelMode === "shuttle"
+                  ? "查看 Duke Shuttle 方案"
+                  : `规划${TRAVEL_MODE_META[travelMode].label}路线`}
             </button>
+
+            {travelMode === "shuttle" && selectedPlace.shuttle && (
+              <div className="shuttle-result">
+                <Bus size={19} />
+                <div>
+                  <strong>{selectedPlace.shuttle.route}</strong>
+                  <span>{selectedPlace.shuttle.summary}</span>
+                  <a
+                    href={selectedPlace.shuttle.liveUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    TransLoc 实时车辆
+                    <ExternalLink size={13} />
+                  </a>
+                </div>
+              </div>
+            )}
 
             {routeMessage && (
               <div className="route-warning">
@@ -563,7 +759,7 @@ export default function DukeMapClient() {
 
             <div className="external-route-links">
               <a
-                href={mapsLink(selectedPlace, "apple")}
+                href={mapsLink(selectedPlace, "apple", travelMode)}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -571,7 +767,7 @@ export default function DukeMapClient() {
                 <ExternalLink size={14} />
               </a>
               <a
-                href={mapsLink(selectedPlace, "google")}
+                href={mapsLink(selectedPlace, "google", travelMode)}
                 target="_blank"
                 rel="noreferrer"
               >

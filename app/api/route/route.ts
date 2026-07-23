@@ -88,6 +88,11 @@ export async function GET(request: NextRequest) {
   const originLon = Number(params.get("originLon"));
   const destLat = Number(params.get("destLat"));
   const destLon = Number(params.get("destLon"));
+  const requestedMode = params.get("mode");
+  const costing =
+    requestedMode === "bicycle" || requestedMode === "auto"
+      ? requestedMode
+      : "pedestrian";
 
   if (
     !isInsideDukeArea(originLat, originLon) ||
@@ -104,7 +109,7 @@ export async function GET(request: NextRequest) {
       { lat: originLat, lon: originLon },
       { lat: destLat, lon: destLon },
     ],
-    costing: "pedestrian",
+    costing,
     units: "kilometers",
     directions_options: { units: "kilometers" },
   };
@@ -156,7 +161,7 @@ export async function GET(request: NextRequest) {
           instruction: translateInstruction(step.instruction ?? "继续步行"),
           distanceMeters: Math.round((step.length ?? 0) * 1000),
         })),
-        engine: "Valhalla pedestrian / OpenStreetMap",
+        engine: `Valhalla ${costing} / OpenStreetMap`,
       },
       { headers: { "Cache-Control": "no-store" } },
     );

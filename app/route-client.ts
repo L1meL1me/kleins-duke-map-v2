@@ -6,6 +6,8 @@ export type RouteResult = {
   engine: string;
 };
 
+export type RouteMode = "pedestrian" | "bicycle" | "auto";
+
 type ValhallaResponse = {
   trip?: {
     summary?: { length?: number; time?: number };
@@ -88,13 +90,14 @@ function translateInstruction(instruction: string) {
 async function fetchFromValhalla(
   origin: [number, number],
   destination: [number, number],
+  mode: RouteMode,
 ): Promise<RouteResult> {
   const payload = {
     locations: [
       { lat: origin[0], lon: origin[1] },
       { lat: destination[0], lon: destination[1] },
     ],
-    costing: "pedestrian",
+    costing: mode,
     units: "kilometers",
     directions_options: { units: "kilometers" },
   };
@@ -123,13 +126,14 @@ async function fetchFromValhalla(
       instruction: translateInstruction(step.instruction ?? "继续步行"),
       distanceMeters: Math.round((step.length ?? 0) * 1000),
     })),
-    engine: "Valhalla pedestrian / OpenStreetMap",
+    engine: `Valhalla ${mode} / OpenStreetMap`,
   };
 }
 
-export async function fetchWalkingRoute(
+export async function fetchRoute(
   origin: [number, number],
   destination: [number, number],
+  mode: RouteMode,
 ): Promise<RouteResult> {
   const isGitHubPages =
     typeof window !== "undefined" &&
@@ -141,6 +145,7 @@ export async function fetchWalkingRoute(
       originLon: String(origin[1]),
       destLat: String(destination[0]),
       destLon: String(destination[1]),
+      mode,
     });
 
     try {
@@ -154,5 +159,5 @@ export async function fetchWalkingRoute(
     }
   }
 
-  return fetchFromValhalla(origin, destination);
+  return fetchFromValhalla(origin, destination, mode);
 }
