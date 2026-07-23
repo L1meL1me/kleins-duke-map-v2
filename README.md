@@ -13,7 +13,7 @@ Duke 与 Research Triangle 的个人生活地图，包含 89 个固定地点：
 
 ## 独立网站
 
-网站通过 GitHub Pages 自动发布，不依赖 ChatGPT 或 `chatgpt.site`。每次修改
+网站通过 GitHub Pages 自动发布。每次修改
 `main` 分支后，GitHub Actions 会自动重新构建并上线。
 
 ## 最常编辑的文件
