@@ -4,7 +4,7 @@ Duke West Campus 的个人地图：固定核验地点、课程动线、地点筛
 
 ## 独立网站
 
-网站通过 GitHub Pages 自动发布，不依赖 ChatGPT 或 `chatgpt.site`。每次修改
+网站通过 GitHub Pages 自动发布。每次修改
 `main` 分支后，GitHub Actions 会自动重新构建并上线。
 
 ## 最常编辑的文件
